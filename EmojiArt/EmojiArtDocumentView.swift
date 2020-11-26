@@ -32,12 +32,23 @@ struct EmojiArtDocumentView: View {
                             .offset(panOffset)
                     )
                     .gesture(doubleTapToZoom(in: geometry.size))
+                    // Homework 4 Required Task 10 trashcan for deleting emoji
+                    Image(systemName: "trash")
+                        .font(Font.system(size: defaultEmojiSize))
+                        .background(Color.white)
+                        .foregroundColor(movedIntoTrashArea(in: geometry.size) ? .red : .black)
+                        .frame(width: 100, height: 100)
+                        .position(x: 50, y: geometry.size.height - 50)
+                        .edgesIgnoringSafeArea([.horizontal, .bottom])
+                        .hidden(on: gestureMoveOffset == .zero)
+                        .animation(.easeIn)
                     ForEach(document.emojis) { emoji in
                         Text(emoji.text)
-                            .font(animatableWithSize: emoji.fontSize * zoomScale)
-                            .border(selectedEmoji.contains(emoji) ? Color.black : Color.clear)  // Homework 4 Required Task 2
+                            .font(animatableWithSize: selectedEmoji.contains(matching: emoji) ? emoji.fontSize * selectionZoomScale : emoji.fontSize * zoomScale)
+                            .border(selectedEmoji.contains(matching: emoji) ? Color.black : Color.clear)  // Homework 4 Required Task 2
                             .position(self.position(for: emoji, in: geometry.size))
-                            .gesture(emojiSelect(emoji: emoji)) // Homework 4 Required Task 3, 4
+                            .gesture(emojiSelect(emoji: emoji, in: geometry.size)) // Homework 4 Required Task 3, 4
+                            .gesture(emojiMove(emoji: emoji, in: geometry.size))
                     }
                 }.clipped()
                 .gesture(clearSelections())  // Homework 4 Required Task 5
@@ -50,8 +61,47 @@ struct EmojiArtDocumentView: View {
                     location = CGPoint(x: location.x - self.panOffset.width, y: location.y - panOffset.height)
                     location = CGPoint(x: location.x / zoomScale, y: location.y / zoomScale)
                     return self.drop(providers: providers, at: location)
-                } // of is a URI, location is in global coordinate space (entire device)
+                }
             }
+        }
+    }
+    
+    @GestureState private var gestureMoveLocation: CGPoint = .zero
+    @GestureState private var gestureMoveOffset: CGSize = .zero
+    
+    private func movedIntoTrashArea(in geometry: CGSize) -> Bool {
+        if gestureMoveLocation == .zero {
+            return false
+        } else {
+            return gestureMoveLocation.x < 90 && gestureMoveLocation.y > geometry.height - 90
+        }
+    }
+    
+    private var moveOffset: CGSize {
+        gestureMoveOffset * zoomScale
+    }
+    
+    private func emojiMove(emoji: EmojiArt.Emoji, in geometry: CGSize) -> some Gesture {
+        DragGesture()
+            .updating($gestureMoveLocation) { latestDragGestureValue, gestureMoveLocation, transaction in
+                gestureMoveLocation = latestDragGestureValue.location
+            }
+            .updating($gestureMoveOffset) { latestDragGestureValue, gestureMoveOffset, transaction in
+                gestureMoveOffset = latestDragGestureValue.translation / zoomScale  // this is NOT the @GestureState var... its local inout
+                //print(latestDragGestureValue.location)
+            }
+            .onEnded { finalDragGestureValue in
+                if finalDragGestureValue.location.x < 90 && finalDragGestureValue.location.y > geometry.height - 90 {
+                    deleteDrop()
+                } else {
+                    moveEmojis(by: finalDragGestureValue.translation / zoomScale)
+                }
+            }
+    }
+    
+    private func moveEmojis(by offset: CGSize) {
+        for emoji in selectedEmoji {
+            document.moveEmoji(emoji, by: offset)
         }
     }
     
@@ -63,11 +113,11 @@ struct EmojiArtDocumentView: View {
     
     // Single-tap on the emoji selects it or deselects it
     // Homework 4 Required Tasks 2, 3, 4
-    private func emojiSelect(emoji: EmojiArt.Emoji) -> some Gesture {
+    private func emojiSelect(emoji: EmojiArt.Emoji, in geometry: CGSize) -> some Gesture {
         TapGesture()
             .onEnded {
                 selectedEmoji.toggleMatching(emoji)
-            }.exclusively(before: zoomGesture())
+            }.exclusively(before: emojiMove(emoji: emoji, in: geometry))
     }
     
     // UI-only, so @State.  We zoom emojis with the zoomscale too, so it doesn't go to the model
@@ -75,8 +125,16 @@ struct EmojiArtDocumentView: View {
     @GestureState private var gestureZoomScale: CGFloat = 1.0
     
     private var zoomScale: CGFloat {
-        // When pinch gesture is not in action, gestureZoomScale is 1.0 so no effect
-        // and then no need to udpate it
+        // zoomScale is used for all items when there is no selection
+        // Homework 4 Required Task 8, 9
+        if selectedEmoji.count == 0 {
+            return steadyStateZoomScale * gestureZoomScale
+        } else {
+            return steadyStateZoomScale
+        }
+    }
+    
+    private var selectionZoomScale: CGFloat {
         steadyStateZoomScale * gestureZoomScale
     }
     
@@ -86,7 +144,19 @@ struct EmojiArtDocumentView: View {
                 gestureZoomScale = latestGestureScale  // this is NOT the @GestureState var... its local inout
             }
             .onEnded { finalGestureScale in
-            self.steadyStateZoomScale *= finalGestureScale
+                // Homework 4 Required Task 8, 9
+                if selectedEmoji.count == 0 {
+                    self.steadyStateZoomScale *= finalGestureScale
+                } else {
+                    scaleSelectedEmojis(by: finalGestureScale)
+                }
+            }
+    }
+    
+    // Homework 4 Required Task 8
+    private func scaleSelectedEmojis(by scale: CGFloat) {
+        for emoji in selectedEmoji {
+            document.scaleEmoji(emoji, by: scale)
         }
     }
     
@@ -132,6 +202,9 @@ struct EmojiArtDocumentView: View {
         location = CGPoint(x: location.x * zoomScale, y: location.y * zoomScale)
         location = CGPoint(x: location.x + size.width/2, y: location.y + size.height/2)
         location = CGPoint(x: location.x + panOffset.width, y: location.y + panOffset.height)
+        if selectedEmoji.contains(matching: emoji) {
+            location = CGPoint(x: location.x + moveOffset.width, y: location.y + moveOffset.height)
+        }
         return location
     }
     
@@ -146,6 +219,12 @@ struct EmojiArtDocumentView: View {
             }
         }
         return found
+    }
+    
+    private func deleteDrop() {
+        for emoji in selectedEmoji {
+            document.removeEmoji(emoji)
+        }
     }
     
     private let defaultEmojiSize: CGFloat = 40

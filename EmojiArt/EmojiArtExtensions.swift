@@ -210,13 +210,30 @@ extension UIImage {
     }
 }
 
-// Homework 4 Required Tasks 3, 4 (using Hint 4... need to employ Identifiable yet)
-extension Set {
+// Homework 4 Required Tasks 3, 4
+extension Set where Element: Identifiable {
+    func contains(matching element: Element) -> Bool {
+        self.contains(where: { $0.id == element.id })
+    }
+    
     mutating func toggleMatching(_ element: Element) {
-        if self.contains(element) {
-            self.remove(element)
+        if self.contains(matching: element) {
+            if let index = self.firstIndex(matching: element) {
+                self.remove(at: index)
+            }
         } else {
             self.insert(element)
+        }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func hidden(on hide: Bool) -> some View {
+        if hide {
+            self.hidden()
+        } else {
+            self
         }
     }
 }
