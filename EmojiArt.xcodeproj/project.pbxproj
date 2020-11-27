@@ -16,6 +16,7 @@
 		5D471CD32561C92000AF1355 /* EmojiArtExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D471CD22561C92000AF1355 /* EmojiArtExtensions.swift */; };
 		5D471CD725634E8D00AF1355 /* OptionalImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D471CD625634E8D00AF1355 /* OptionalImage.swift */; };
 		5D471CDA2563511900AF1355 /* AnimatableSystemFontModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D471CD92563511900AF1355 /* AnimatableSystemFontModifier.swift */; };
+		5D9E8BAA257092C900447AFA /* TrashCanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D9E8BA9257092C900447AFA /* TrashCanView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +31,7 @@
 		5D471CD22561C92000AF1355 /* EmojiArtExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiArtExtensions.swift; sourceTree = "<group>"; };
 		5D471CD625634E8D00AF1355 /* OptionalImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptionalImage.swift; sourceTree = "<group>"; };
 		5D471CD92563511900AF1355 /* AnimatableSystemFontModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatableSystemFontModifier.swift; sourceTree = "<group>"; };
+		5D9E8BA9257092C900447AFA /* TrashCanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashCanView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,6 +66,7 @@
 			children = (
 				5D471CBB2561B1AD00AF1355 /* EmojiArtApp.swift */,
 				5D471CBD2561B1AD00AF1355 /* EmojiArtDocumentView.swift */,
+				5D9E8BA9257092C900447AFA /* TrashCanView.swift */,
 				5D471CD92563511900AF1355 /* AnimatableSystemFontModifier.swift */,
 				5D471CD625634E8D00AF1355 /* OptionalImage.swift */,
 				5D471CCF2561C23B00AF1355 /* EmojiArt.swift */,
@@ -157,6 +160,7 @@
 				5D471CD02561C23B00AF1355 /* EmojiArt.swift in Sources */,
 				5D471CD32561C92000AF1355 /* EmojiArtExtensions.swift in Sources */,
 				5D471CBE2561B1AD00AF1355 /* EmojiArtDocumentView.swift in Sources */,
+				5D9E8BAA257092C900447AFA /* TrashCanView.swift in Sources */,
 				5D471CD725634E8D00AF1355 /* OptionalImage.swift in Sources */,
 				5D471CCC2561B1D500AF1355 /* EmojiArtDocument.swift in Sources */,
 				5D471CBC2561B1AD00AF1355 /* EmojiArtApp.swift in Sources */,

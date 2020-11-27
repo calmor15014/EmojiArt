@@ -26,6 +26,7 @@ struct EmojiArtDocumentView: View {
             .padding(.horizontal)
             GeometryReader{ geometry in
                 ZStack{
+                    // Background white (or image) view
                     Color.white.overlay( // overlay is for sizing purposes
                         OptionalImage(uiImage: document.backgroundImage)
                             .scaleEffect(zoomScale)
@@ -33,22 +34,16 @@ struct EmojiArtDocumentView: View {
                     )
                     .gesture(doubleTapToZoom(in: geometry.size))
                     // Homework 4 Required Task 10 trashcan for deleting emoji
-                    Image(systemName: "trash")
-                        .font(Font.system(size: defaultEmojiSize))
-                        .background(Color.white)
-                        .foregroundColor(movedIntoTrashArea(in: geometry.size) ? .red : .black)
-                        .frame(width: 100, height: 100)
-                        .position(x: 50, y: geometry.size.height - 50)
-                        .edgesIgnoringSafeArea([.horizontal, .bottom])
-                        .hidden(on: gestureMoveOffset == .zero)
-                        .animation(.easeIn)
+                    TrashCanView(size: trashCanAreaSize, dragIntoTrashArea: movedIntoTrashArea(in: geometry.size))
+                        .position(showTrashCan ? CGPoint(x: 50, y: geometry.size.height - 50) : CGPoint(x: -100, y: geometry.size.height - 50))
+                    // List of the emojis
                     ForEach(document.emojis) { emoji in
                         Text(emoji.text)
                             .font(animatableWithSize: selectedEmoji.contains(matching: emoji) ? emoji.fontSize * selectionZoomScale : emoji.fontSize * zoomScale)
                             .border(selectedEmoji.contains(matching: emoji) ? Color.black : Color.clear)  // Homework 4 Required Task 2
                             .position(self.position(for: emoji, in: geometry.size))
                             .gesture(emojiSelect(emoji: emoji, in: geometry.size)) // Homework 4 Required Task 3, 4
-                            .gesture(emojiMove(emoji: emoji, in: geometry.size))
+                            .gesture(emojiMove(emoji: emoji, in: geometry.size)) // Homework 4 Required Task 6
                     }
                 }.clipped()
                 .gesture(clearSelections())  // Homework 4 Required Task 5
@@ -66,15 +61,23 @@ struct EmojiArtDocumentView: View {
         }
     }
     
+    // MARK: - Moving / Deleting Emoji
+    
+    @State private var movingEmojiTouched: Int? = nil
     @GestureState private var gestureMoveLocation: CGPoint = .zero
     @GestureState private var gestureMoveOffset: CGSize = .zero
     
+    private var showTrashCan: Bool {
+        return movingEmojiTouched != nil
+    }
+    
+    private var movingEmojiInSelection: Bool {
+        guard let touchedID = movingEmojiTouched else { return false }
+        return selectedEmoji.contains(where: {$0.id == touchedID})
+    }
+    
     private func movedIntoTrashArea(in geometry: CGSize) -> Bool {
-        if gestureMoveLocation == .zero {
-            return false
-        } else {
-            return gestureMoveLocation.x < 90 && gestureMoveLocation.y > geometry.height - 90
-        }
+        return gestureMoveLocation.x < 90 && gestureMoveLocation.y > geometry.height - 90
     }
     
     private var moveOffset: CGSize {
@@ -83,6 +86,7 @@ struct EmojiArtDocumentView: View {
     
     private func emojiMove(emoji: EmojiArt.Emoji, in geometry: CGSize) -> some Gesture {
         DragGesture()
+            .onChanged {_ in withAnimation(.easeInOut) { movingEmojiTouched = emoji.id }}
             .updating($gestureMoveLocation) { latestDragGestureValue, gestureMoveLocation, transaction in
                 gestureMoveLocation = latestDragGestureValue.location
             }
@@ -92,24 +96,43 @@ struct EmojiArtDocumentView: View {
             }
             .onEnded { finalDragGestureValue in
                 if finalDragGestureValue.location.x < 90 && finalDragGestureValue.location.y > geometry.height - 90 {
-                    deleteDrop()
+                    deleteDrop(touchedEmoji: emoji)
                 } else {
-                    moveEmojis(by: finalDragGestureValue.translation / zoomScale)
+                    moveEmojis(by: finalDragGestureValue.translation / zoomScale, touchedEmoji: emoji)
                 }
+                withAnimation(.easeInOut) { movingEmojiTouched = nil }
             }
     }
     
-    private func moveEmojis(by offset: CGSize) {
-        for emoji in selectedEmoji {
-            document.moveEmoji(emoji, by: offset)
+    private func moveEmojis(by offset: CGSize, touchedEmoji: EmojiArt.Emoji) {
+        if selectedEmoji.contains(matching: touchedEmoji) {
+            for emoji in selectedEmoji {
+                document.moveEmoji(emoji, by: offset)
+            }
+        } else {
+            document.moveEmoji(touchedEmoji, by: offset)
         }
     }
+    
+    private func deleteDrop(touchedEmoji: EmojiArt.Emoji) {
+        if selectedEmoji.contains(matching: touchedEmoji) {
+            for emoji in selectedEmoji {
+                document.removeEmoji(emoji)
+            }
+        } else {
+            document.removeEmoji(touchedEmoji)
+        }
+    }
+    
+    // MARK: - Clear Selections
     
     // Single-tap on the background image clears the selections
     // Homework 4 Required Task 5
     private func clearSelections() -> some Gesture {
         TapGesture().onEnded { selectedEmoji = [] }
     }
+    
+    // MARK: - Emoji Selection/De-selection
     
     // Single-tap on the emoji selects it or deselects it
     // Homework 4 Required Tasks 2, 3, 4
@@ -119,6 +142,8 @@ struct EmojiArtDocumentView: View {
                 selectedEmoji.toggleMatching(emoji)
             }.exclusively(before: emojiMove(emoji: emoji, in: geometry))
     }
+    
+    // MARK: - Scale Document/Emoji Gesture
     
     // UI-only, so @State.  We zoom emojis with the zoomscale too, so it doesn't go to the model
     @State private var steadyStateZoomScale: CGFloat = 1.0
@@ -160,6 +185,8 @@ struct EmojiArtDocumentView: View {
         }
     }
     
+    // MARK: - Pan Document
+    
     @State private var steadyStatePanOffset: CGSize = .zero
     @GestureState private var gesturePanOffset: CGSize = .zero
     
@@ -178,7 +205,8 @@ struct EmojiArtDocumentView: View {
                 steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
         }
     }
-    
+
+    // MARK: - Zoom Document to Fit Gesture
     
     private func doubleTapToZoom(in size: CGSize) -> some Gesture {
         TapGesture(count: 2).onEnded {
@@ -197,12 +225,21 @@ struct EmojiArtDocumentView: View {
         }
     }
     
+    // MARK: - Position and Drop Functions
+    
     private func position(for emoji: EmojiArt.Emoji, in size: CGSize) -> CGPoint {
         var location = emoji.location
         location = CGPoint(x: location.x * zoomScale, y: location.y * zoomScale)
         location = CGPoint(x: location.x + size.width/2, y: location.y + size.height/2)
         location = CGPoint(x: location.x + panOffset.width, y: location.y + panOffset.height)
-        if selectedEmoji.contains(matching: emoji) {
+        // If an emoji is moving and it's in the selection
+        if (movingEmojiInSelection) {
+            // Move all of the emojis in the selection
+            if selectedEmoji.contains(matching: emoji) {
+                location = CGPoint(x: location.x + moveOffset.width, y: location.y + moveOffset.height)
+            }
+        // Or if an emoji is moving on its own, just move that one
+        } else if movingEmojiTouched != nil && emoji.id == movingEmojiTouched {
             location = CGPoint(x: location.x + moveOffset.width, y: location.y + moveOffset.height)
         }
         return location
@@ -221,13 +258,10 @@ struct EmojiArtDocumentView: View {
         return found
     }
     
-    private func deleteDrop() {
-        for emoji in selectedEmoji {
-            document.removeEmoji(emoji)
-        }
-    }
+    // MARK: - Drawing Constants
     
     private let defaultEmojiSize: CGFloat = 40
+    private let trashCanAreaSize: CGSize = CGSize(width: 100, height: 100)
 }
 
 // Turned off for now...

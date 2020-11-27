@@ -233,7 +233,7 @@ extension View {
         if hide {
             self.hidden()
         } else {
-            self
+             self
         }
     }
 }
