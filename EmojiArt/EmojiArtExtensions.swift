@@ -227,13 +227,3 @@ extension Set where Element: Identifiable {
     }
 }
 
-extension View {
-    @ViewBuilder
-    func hidden(on hide: Bool) -> some View {
-        if hide {
-            self.hidden()
-        } else {
-             self
-        }
-    }
-}
