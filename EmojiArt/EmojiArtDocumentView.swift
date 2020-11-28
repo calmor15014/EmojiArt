@@ -11,19 +11,23 @@ struct EmojiArtDocumentView: View {
     @ObservedObject var document: EmojiArtDocument
     @State var selectedEmoji: Set<EmojiArt.Emoji> = []
     
+    @State private var chosenPalette: String = ""
+    
     var body: some View {
         VStack {
-            ScrollView(.horizontal) {
-                HStack {
-                    // .map and id \.self info in OneNote
-                    ForEach(EmojiArtDocument.palette.map { String($0) }, id: \.self) { emoji in
-                        Text(emoji)
-                            .font(Font.system(size: defaultEmojiSize))
-                            .onDrag { NSItemProvider(object: emoji as NSString) }  // will cover "as" later
+            HStack {
+                PaletteChooser(document: document, chosenPalette: $chosenPalette)
+                ScrollView(.horizontal) {
+                    HStack {
+                        // .map and id \.self info in OneNote
+                        ForEach(chosenPalette.map { String($0) }, id: \.self) { emoji in
+                            Text(emoji)
+                                .font(Font.system(size: defaultEmojiSize))
+                                .onDrag { NSItemProvider(object: emoji as NSString) }  // will cover "as" later
+                        }
                     }
-                }
+                }.onAppear { chosenPalette = document.defaultPalette }
             }
-            .padding(.horizontal)
             GeometryReader{ geometry in
                 ZStack{
                     // Background white (or image) view
@@ -37,19 +41,26 @@ struct EmojiArtDocumentView: View {
                     TrashCanView(size: trashCanAreaSize, dragIntoTrashArea: movedIntoTrashArea(in: geometry.size))
                         .position(showTrashCan ? CGPoint(x: 50, y: geometry.size.height - 50) : CGPoint(x: -100, y: geometry.size.height - 50))
                     // List of the emojis
-                    ForEach(document.emojis) { emoji in
-                        Text(emoji.text)
-                            .font(animatableWithSize: selectedEmoji.contains(matching: emoji) ? emoji.fontSize * selectionZoomScale : emoji.fontSize * zoomScale)
-                            .border(selectedEmoji.contains(matching: emoji) ? Color.black : Color.clear)  // Homework 4 Required Task 2
-                            .position(self.position(for: emoji, in: geometry.size))
-                            .gesture(emojiSelect(emoji: emoji, in: geometry.size)) // Homework 4 Required Task 3, 4
-                            .gesture(emojiMove(emoji: emoji, in: geometry.size)) // Homework 4 Required Task 6
+                    if isLoading {
+                        Image(systemName: "hourglass").imageScale(.large).spinning()
+                    } else {
+                        ForEach(document.emojis) { emoji in
+                            Text(emoji.text)
+                                .font(animatableWithSize: selectedEmoji.contains(matching: emoji) ? emoji.fontSize * selectionZoomScale : emoji.fontSize * zoomScale)
+                                .border(selectedEmoji.contains(matching: emoji) ? Color.black : Color.clear)  // Homework 4 Required Task 2
+                                .position(self.position(for: emoji, in: geometry.size))
+                                .gesture(emojiSelect(emoji: emoji, in: geometry.size)) // Homework 4 Required Task 3, 4
+                                .gesture(emojiMove(emoji: emoji, in: geometry.size)) // Homework 4 Required Task 6
+                        }
                     }
                 }.clipped()
                 .gesture(clearSelections())  // Homework 4 Required Task 5
                 .gesture(panGesture())
                 .gesture(zoomGesture())
                 .edgesIgnoringSafeArea([.horizontal, .bottom])
+                .onReceive(document.$backgroundImage) { image in
+                    zoomToFit(image, in: geometry.size)
+                }
                 .onDrop(of: ["public.image","public.text"], isTargeted: nil) { providers, location in
                     var location = geometry.convert(location, from: .global)
                     location = CGPoint(x: location.x - geometry.size.width / 2, y: location.y - geometry.size.height / 2)
@@ -59,6 +70,10 @@ struct EmojiArtDocumentView: View {
                 }
             }
         }
+    }
+    
+    var isLoading: Bool {
+        document.backgroundURL != nil && document.backgroundImage == nil
     }
     
     // MARK: - Moving / Deleting Emoji
@@ -248,7 +263,7 @@ struct EmojiArtDocumentView: View {
     private func drop(providers: [NSItemProvider], at location: CGPoint) -> Bool {
         var found = providers.loadFirstObject(ofType: URL.self) { url in
             // print("dropped \(url)")
-            self.document.setBackgroundURL(url)
+            self.document.backgroundURL = url
         }
         if !found {
             found = providers.loadObjects(ofType: String.self) { string in

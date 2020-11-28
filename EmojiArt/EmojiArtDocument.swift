@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine  // Needed for cancellable, subscribe, etc...
 
 class EmojiArtDocument: ObservableObject {
     
@@ -14,17 +15,25 @@ class EmojiArtDocument: ObservableObject {
     static let palette: String = "🍎😀😎🐵⚔️📍"
     
     // Don't need the workaround for @Published swift problems, now fixed in newest Swift
-    @Published private var emojiArt: EmojiArt = EmojiArt() {
-        didSet {
-            // print("json = \(emojiArt.json?.utf8 ?? "nil")")  // testing only
-            UserDefaults.standard.set(emojiArt.json, forKey: EmojiArtDocument.untitled)
-        }
-    }
+    // But changed to follow Lecture 9 publisher.  Commented version worked in newest swift
+    @Published private var emojiArt: EmojiArt //= EmojiArt() {
+//        didSet {
+//            // print("json = \(emojiArt.json?.utf8 ?? "nil")")  // testing only
+//            UserDefaults.standard.set(emojiArt.json, forKey: EmojiArtDocument.untitled)
+//        }
+//    }
     
     private static let untitled = "EmojiArtDocument.Untitled"
     
+    // Added for cancellable and publishing events
+    private var autosaveCancellable: AnyCancellable?
+    
     init() {
         emojiArt = EmojiArt(json: UserDefaults.standard.data(forKey: EmojiArtDocument.untitled)) ?? EmojiArt()
+        autosaveCancellable = $emojiArt.sink { emojiArt in
+            //print("json = \(emojiArt.json?.utf8 ?? "nil")")  // testing only
+            UserDefaults.standard.set(emojiArt.json, forKey: EmojiArtDocument.untitled)
+        }
         fetchBackgroundImageData()
     }
     
@@ -59,32 +68,54 @@ class EmojiArtDocument: ObservableObject {
         }
     }
     
-    func setBackgroundURL(_ url: URL?) {
-        emojiArt.backgroundURL = url?.imageURL
-        fetchBackgroundImageData()
+    var backgroundURL: URL? {
+        get {
+            emojiArt.backgroundURL
+        }
+        set {
+            emojiArt.backgroundURL = newValue?.imageURL
+            fetchBackgroundImageData()
+        }
     }
     
-    // This is the main part of this lecture
+//    // This is the main part of the original EmojiArt lecture
+//    // But now being replaced by URLSession
+//    private func fetchBackgroundImageData() {
+//        // Going to get a new image, so clear now (also shows there is some progress)
+//        backgroundImage = nil
+//        // Only fetch if there is an actual URL to look for
+//        if let url = self.emojiArt.backgroundURL {
+//            // Normally would use URLSession instead of this manual method
+//            // Will cover try? another time, but returns nil on failure
+//            // This would be code-blocking if on the main thread...
+//            DispatchQueue.global(qos: .userInitiated).async {
+//                if let imageData = try? Data(contentsOf: url) {
+//                    // But now we have to manage the UI on the main thread, so let's queue that code
+//                    DispatchQueue.main.async {
+//                        // Make sure user still wanted it i.e. slow image finally returned but
+//                        // user picked another while waiting for the old one
+//                        if url == self.emojiArt.backgroundURL {
+//                            self.backgroundImage = UIImage(data: imageData)
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
+    
+    private var fetchImageCancellable: AnyCancellable?               // Lives longer than the function to wait for network
     private func fetchBackgroundImageData() {
-        // Going to get a new image, so clear now (also shows there is some progress)
+        // Going to get a new image, so clear for now (also indicates progress for new "loading" scheme
         backgroundImage = nil
         // Only fetch if there is an actual URL to look for
-        if let url = self.emojiArt.backgroundURL {
-            // Normally would use URLSession instead of this manual method
-            // Will cover try? another time, but returns nil on failure
-            // This would be code-blocking if on the main thread...
-            DispatchQueue.global(qos: .userInitiated).async {
-                if let imageData = try? Data(contentsOf: url) {
-                    // But now we have to manage the UI on the main thread, so let's queue that code
-                    DispatchQueue.main.async {
-                        // Make sure user still wanted it i.e. slow image finally returned but
-                        // user picked another while waiting for the old one
-                        if url == self.emojiArt.backgroundURL {
-                            self.backgroundImage = UIImage(data: imageData)
-                        }
-                    }
-                }
-            }
+        if let url = emojiArt.backgroundURL {
+            fetchImageCancellable?.cancel()                         // Cancel any older fetches that didn't complete
+            fetchImageCancellable = URLSession.shared.dataTaskPublisher(for: url)     // default URLSession, done in a background thread
+                .map { data, urlResponse in UIImage(data: data) }   // Now publisher returns a failable UIImage
+                .receive(on: DispatchQueue.main)                    // Now publisher returns on the main queue
+                .replaceError(with: nil)                            // Now publisher returns either UIImage or nil
+                .assign(to: \.backgroundImage, on: self)            // assign only works if there is no error, this takes the place of .sink
+                                                                    // \.backgroundImage is a keypath (weird?), \.backgroundImage as it's on self
         }
     }
 }
