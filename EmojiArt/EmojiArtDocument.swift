@@ -8,7 +8,17 @@
 import SwiftUI
 import Combine  // Needed for cancellable, subscribe, etc...
 
-class EmojiArtDocument: ObservableObject {
+class EmojiArtDocument: ObservableObject, Hashable, Identifiable {
+    
+    let id: UUID
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)  // only works for classes; we'd have to do all variables for structs
+    }
+    
+    static func == (lhs: EmojiArtDocument, rhs: EmojiArtDocument) -> Bool {
+        lhs.id == rhs.id    // only works for classes because they're not copied on each pass
+    }
     
     // Static so that it is not specific to class instances
     // Eventually will be an array of palettes and be a var
@@ -23,22 +33,26 @@ class EmojiArtDocument: ObservableObject {
 //        }
 //    }
     
-    private static let untitled = "EmojiArtDocument.Untitled"
-    
     // Added for cancellable and publishing events
     private var autosaveCancellable: AnyCancellable?
     
-    init() {
-        emojiArt = EmojiArt(json: UserDefaults.standard.data(forKey: EmojiArtDocument.untitled)) ?? EmojiArt()
+    init(id: UUID? = nil) {
+        self.id = id ?? UUID()
+        let defaultsKey = "EmojiArtDocument.\(self.id.uuidString)"
+        emojiArt = EmojiArt(json: UserDefaults.standard.data(forKey: defaultsKey)) ?? EmojiArt()
         autosaveCancellable = $emojiArt.sink { emojiArt in
             //print("json = \(emojiArt.json?.utf8 ?? "nil")")  // testing only
-            UserDefaults.standard.set(emojiArt.json, forKey: EmojiArtDocument.untitled)
+            UserDefaults.standard.set(emojiArt.json, forKey: defaultsKey)
         }
         fetchBackgroundImageData()
     }
     
     // Published so that when it changes, the view redraws
     @Published private(set) var backgroundImage: UIImage?
+    
+    @Published var steadyStatePanOffset: CGSize = .zero
+    @Published var steadyStateZoomScale: CGFloat = 1.0
+    
     
     var emojis: [EmojiArt.Emoji] { emojiArt.emojis }
     

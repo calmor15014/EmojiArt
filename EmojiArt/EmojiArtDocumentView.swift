@@ -13,6 +13,13 @@ struct EmojiArtDocumentView: View {
     
     @State private var chosenPalette: String = ""
     
+    // To demonstrate how property wrapper is working, this init sets the value inside the @State
+    // so that we don't need to use .onAppear.  Not the most elegant way to do it, but educational
+    init(document: EmojiArtDocument) {
+        self.document = document
+        _chosenPalette = State(wrappedValue: self.document.defaultPalette)
+    }
+    
     var body: some View {
         VStack {
             HStack {
@@ -68,9 +75,38 @@ struct EmojiArtDocumentView: View {
                     location = CGPoint(x: location.x / zoomScale, y: location.y / zoomScale)
                     return self.drop(providers: providers, at: location)
                 }
+                .navigationBarItems(trailing: Button( action: {
+                    if let url = UIPasteboard.general.url, url != self.document.backgroundURL {     // shared clipboard
+                        confirmBackgroundPaste = true
+                    } else {
+                        explainBackgroundPaste = true
+                    }
+                }, label: {
+                    Image(systemName: "doc.on.clipboard").imageScale(.large)
+                        .alert(isPresented: $explainBackgroundPaste) {
+                            return Alert(title: Text("Paste Background"), message: Text("Copy the URL of an image to the clipboard and touch this button to make it the background of your document."), dismissButton: .default(Text("OK"))
+                            )
+                        }
+                }))
             }
+            .zIndex(-1) // also fixes the errors
+        }.ignoresSafeArea(.keyboard) // required to keep emojis from shifting up for whatever reason...
+        // Just thrown here to avoid putting two things on the same image.  Would be better to enum and switch on the above.
+        .alert(isPresented: $confirmBackgroundPaste) {
+            Alert(
+                title: Text("Paste Background"),
+                message: Text("Replace your background with \(UIPasteboard.general.url?.absoluteString ?? "nothing")?"),
+                primaryButton: .default(Text("OK")) {
+                    document.backgroundURL = UIPasteboard.general.url
+                },
+                secondaryButton: .cancel()
+            )
         }
     }
+    
+    // Would be better to put this as an enum most likely... since can't have two alert(isPresented) on the same view.
+    @State private var explainBackgroundPaste = false
+    @State private var confirmBackgroundPaste = false
     
     var isLoading: Bool {
         document.backgroundURL != nil && document.backgroundImage == nil
@@ -161,21 +197,20 @@ struct EmojiArtDocumentView: View {
     // MARK: - Scale Document/Emoji Gesture
     
     // UI-only, so @State.  We zoom emojis with the zoomscale too, so it doesn't go to the model
-    @State private var steadyStateZoomScale: CGFloat = 1.0
     @GestureState private var gestureZoomScale: CGFloat = 1.0
     
     private var zoomScale: CGFloat {
         // zoomScale is used for all items when there is no selection
         // Homework 4 Required Task 8, 9
         if selectedEmoji.count == 0 {
-            return steadyStateZoomScale * gestureZoomScale
+            return document.steadyStateZoomScale * gestureZoomScale
         } else {
-            return steadyStateZoomScale
+            return document.steadyStateZoomScale
         }
     }
     
     private var selectionZoomScale: CGFloat {
-        steadyStateZoomScale * gestureZoomScale
+        document.steadyStateZoomScale * gestureZoomScale
     }
     
     private func zoomGesture() -> some Gesture {
@@ -186,7 +221,7 @@ struct EmojiArtDocumentView: View {
             .onEnded { finalGestureScale in
                 // Homework 4 Required Task 8, 9
                 if selectedEmoji.count == 0 {
-                    self.steadyStateZoomScale *= finalGestureScale
+                    self.document.steadyStateZoomScale *= finalGestureScale
                 } else {
                     scaleSelectedEmojis(by: finalGestureScale)
                 }
@@ -202,13 +237,12 @@ struct EmojiArtDocumentView: View {
     
     // MARK: - Pan Document
     
-    @State private var steadyStatePanOffset: CGSize = .zero
     @GestureState private var gesturePanOffset: CGSize = .zero
     
     private var panOffset: CGSize {
         // When pinch gesture is not in action, gestureZoomScale is 1.0 so no effect
         // and then no need to udpate it
-        (steadyStatePanOffset + gesturePanOffset) * zoomScale
+        (document.steadyStatePanOffset + gesturePanOffset) * zoomScale
     }
     
     private func panGesture() -> some Gesture {
@@ -217,7 +251,7 @@ struct EmojiArtDocumentView: View {
                 gesturePanOffset = latestDragGestureValue.translation / zoomScale  // this is NOT the @GestureState var... its local inout
             }
             .onEnded { finalDragGestureValue in
-                steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
+                document.steadyStatePanOffset = document.steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
         }
     }
 
@@ -232,11 +266,12 @@ struct EmojiArtDocumentView: View {
     }
     
     private func zoomToFit(_ image: UIImage?, in size: CGSize) {
-        if let image = image, image.size.width > 0, image.size.height > 0 {
+        // New swift didn't need size.height
+        if let image = image, image.size.width > 0, image.size.height > 0, size.height > 0, size.width > 0 {
             let hZoom = size.width / image.size.width
             let vZoom = size.height / image.size.height
-            steadyStatePanOffset = .zero
-            steadyStateZoomScale = min(hZoom, vZoom)
+            document.steadyStatePanOffset = .zero
+            document.steadyStateZoomScale = min(hZoom, vZoom)
         }
     }
     
